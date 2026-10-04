@@ -220,6 +220,98 @@
     }, step.retry.afterMs ?? 2500);
   }
 
+  // ── 네이버: 글씨로 쓰는 옵션 칸 채우기 ────────────────────────────────
+  //
+  // 각인 문구처럼 **사람이 직접 적는 옵션 칸**을 미리 정해 둔 값으로 채운다. 네이버에서만 쓴다.
+  // 그 칸은 대개 구매하기를 누른 뒤 뜨는 **구매 레이어 안**에 있어서, 레이어에서 채우고 나서
+  // 바로구매를 누른다 (naverBuy).
+  //
+  // 칸은 CSS 가 아니라 **칸 이름**(라벨·안내문구·aria-label·name)으로 찾는다 — 사이트가 클래스
+  // 이름을 바꿔도 버티고, 설정하는 사람이 CSS 를 몰라도 된다. 설정 화면의 "현재 탭의 입력 칸 읽기"
+  // 가 그 이름을 그대로 뽑아 준다.
+  //
+  // **비어 있는 칸만 채운다.** 사람이 적어 둔 것은 건드리지 않는다 (덮어쓰려면 overwrite: true).
+
+  const FILLABLE = 'input:not([type]), input[type="text"], input[type="search"], input[type="tel"], input[type="number"], textarea';
+  const filledOnce = new WeakSet();   // 한 번 채운 칸은 다시 안 채운다 (사람이 고쳐 적으면 그대로 둔다)
+
+  /** 이 칸이 무엇을 받는 칸인지 말해 주는 글들. 앞엣것이 더 믿을 만하다. */
+  function fieldNames(el) {
+    const names = [];
+    const add = (v) => {
+      const t = String(v || "").replace(/\s+/g, " ").trim();
+      if (t && t.length <= 80 && !names.includes(t)) names.push(t);
+    };
+    if (el.id) {
+      const tag = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+      if (tag) add(tag.textContent);
+    }
+    const wrap = el.closest("label");
+    if (wrap) add(wrap.textContent);
+    add(el.getAttribute("aria-label"));
+    add(el.getAttribute("placeholder"));
+    add(el.getAttribute("title"));
+    add(el.name);
+    add(el.id);
+    // 라벨 태그를 안 쓰는 화면이 많다 — 칸을 감싼 줄에 적힌 글도 본다.
+    const box = el.closest("div, li, td, tr, p") || el.parentElement;
+    if (box) {
+      const text = (box.textContent || "").replace(/\s+/g, " ").trim();
+      if (text && text.length <= 80) add(text);
+    }
+    return names;
+  }
+
+  function fillableFields() {
+    return [...document.querySelectorAll(FILLABLE)]
+      .filter((el) => visible(el) && !el.disabled && !el.readOnly);
+  }
+
+  /** 설정 화면이 묻는다 — 이 페이지에 어떤 입력 칸이 있나. **값은 보내지 않는다.** */
+  function listFields() {
+    return fillableFields().map((el) => ({
+      names: fieldNames(el),
+      type: el.tagName === "TEXTAREA" ? "textarea" : el.type || "text",
+      filled: !!el.value,
+      max: el.maxLength > 0 ? el.maxLength : null,
+    }));
+  }
+
+  function matchField(spec) {
+    if (spec.selector) {
+      const el = document.querySelector(spec.selector);
+      return el && visible(el) && !el.disabled && !el.readOnly ? el : null;
+    }
+    const want = String(spec.label || "").replace(/\s+/g, " ").trim().toLowerCase();
+    if (!want) return null;
+    return fillableFields().find((el) => fieldNames(el).some((n) => n.toLowerCase().includes(want))) || null;
+  }
+
+  /** 지금 화면에서 채울 수 있는 것을 채운다. → 채운 개수 */
+  function autofillHere() {
+    const cfg = settings.autofill;
+    if (!cfg || !cfg.enabled) return 0;
+    if (!(cfg.match || []).some((m) => m && location.href.includes(m))) return 0;
+    let done = 0;
+    for (const spec of cfg.fields || []) {
+      if (!spec || !spec.value || !(spec.label || spec.selector)) continue;
+      const el = matchField(spec);
+      if (!el || filledOnce.has(el)) continue;
+      if (el.value && !spec.overwrite) continue;
+      filledOnce.add(el);
+      done++;
+      const where = spec.label || spec.selector;
+      if (settings.dryRun) {
+        el.style.outline = "3px solid #e11";
+        say(`[연습] [옵션 칸] '${where}' 에 넣을 차례입니다`);
+        continue;
+      }
+      fill(el, String(spec.value));
+      say(`[옵션 칸] '${where}' 를 채웠습니다`);
+    }
+    return done;
+  }
+
   // ── 네이버 상품 페이지 → 구매하기 (옵션 없는 상품만) ──────────────────────────
   //
   // 글자 목록으로는 안 적히는 흐름이라 따로 둔다. 한 상품 페이지 안에서 시작해 끝난다.
@@ -367,6 +459,7 @@
         nb.phase = "done";   // 이 페이지에서 이미 눌렀다
         return;
       }
+      autofillHere();        // 상품 페이지에 바로 있는 옵션 칸
       await pressBuy(flow, hit, hasOpt);
       return;
     }
@@ -374,6 +467,8 @@
     // phase === "clicked": 레이어가 떴으면 그 안에서 한 번 더
     const confirm = layerConfirm(flow, nb.clicked);
     if (confirm) {
+      // 글자 옵션 칸은 대개 이 레이어 안에 있다. 누르기 전에 채운다.
+      if (autofillHere()) await sleep(150);
       nb.phase = "done";
       await realClick(confirm, flow.name);
       say(`[${flow.name}] 구매 레이어에서 '${labelOf(confirm).slice(0, 20)}' 를 눌렀습니다`);
@@ -708,6 +803,7 @@
         const cfg = settings.pins && settings.pins[kind];
         if (cfg && cfg.enabled && !pinTried[kind] && onPinPage(cfg)) await enterPin(kind);
       }
+      autofillHere();
       await runFlows();
     } catch (e) {
       say(`오류: ${e && e.message}`, "error");
@@ -716,6 +812,15 @@
       if (again) setTimeout(tick, 0);
     }
   }
+
+  // 설정 화면에서 "현재 탭의 입력 칸 읽기" 를 누르면 여기로 온다.
+  chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+    if (msg && msg.type === "listFields") {
+      reply({ url: location.href, fields: listFields() });
+      return true;
+    }
+    return false;
+  });
 
   // 버튼이 생기는 **그 순간** 돈다. 0.2초마다 보는 것만으로는 버튼이 뜨고 최대 0.2초를 흘린다.
   // 화면이 한꺼번에 여러 번 바뀌어도 한 바퀴로 모은다 (busy·again).

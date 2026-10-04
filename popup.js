@@ -94,6 +94,12 @@ function renderSites() {
       if ("reloadSeconds" in flow) card.append(reloadRow(flow));
     }
     for (const [kind, cfg] of pins) card.append(pinBlock(kind, cfg));
+    if (settings.autofill && settings.autofill.site === site.id) {
+      const a = settings.autofill;
+      const n = (a.fields || []).filter((f) => f && f.value).length;
+      card.append(check(`글씨로 쓰는 옵션 칸 채우기 ${n ? `(${n}개)` : "(설정 자세히에서 적기)"}`,
+        a.enabled, (v) => { a.enabled = v; save(); }));
+    }
     box.append(card);
   }
 }

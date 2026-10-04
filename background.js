@@ -67,6 +67,7 @@ function upgrade(saved) {
     flows, pins,
     trustedClick: saved.trustedClick || (saved.pin && saved.pin.trusted) || D.trustedClick,
     discord: upgradeDiscord(saved),   // 옛 discord/monitor 설정을 지금 오프너 모양으로 옮긴다
+    autofill: { ...D.autofill, ...saved.autofill },
   };
   delete out.pin;
   delete out.monitor;        // 0.5 부터 "기록만 하는 모니터링"은 없다. settings.discord(오프너) 만 쓴다.
