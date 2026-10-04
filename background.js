@@ -66,6 +66,7 @@ function upgrade(saved) {
     flows, pins,
     trustedClick: saved.trustedClick || (saved.pin && saved.pin.trusted) || D.trustedClick,
     discord: { ...D.discord, ...saved.discord },
+    autofill: { ...D.autofill, ...saved.autofill },
   };
   delete out.pin;
   return out;
