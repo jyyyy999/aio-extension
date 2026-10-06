@@ -312,6 +312,128 @@
     return done;
   }
 
+  // ── 옵션 칸을 누르면 선택지 팝업 ─────────────────────────────────────
+  //
+  // 설정의 한 칸에 값을 여럿 적어 두면 (`각인 문구 = 에단 | 홍길동`) 그 칸을 눌렀을 때 값들이 팝업으로 뜨고,
+  // 하나를 누르면 그 값이 들어간다. 자동 채우기와 따로 돈다 — 자동 채우기는 첫 값만 비어 있는 칸에 넣고,
+  // 여기서는 사람이 고른 값이 (이미 적혀 있어도) 그 칸을 바꾼다. 고른 칸은 자동 채우기가 다시 건드리지 않는다.
+  // 팝업은 shadow DOM 안에 둬서 페이지 스타일과 섞이지 않고, 호스트는 한 번 붙인 뒤 건드리지 않는다
+  // (바퀴를 돌리는 MutationObserver 가 팝업 때문에 다시 돌지 않게).
+
+  function choicesOf(spec) {
+    const list = Array.isArray(spec.values) && spec.values.length ? spec.values : [spec.value];
+    return list.map((v) => String(v ?? "").trim()).filter(Boolean);
+  }
+
+  /** 이 칸에 해당하는 설정 줄 (matchField 의 반대 방향). */
+  function specFor(el) {
+    for (const spec of settings.autofill.fields || []) {
+      if (!spec || !(spec.label || spec.selector)) continue;
+      if (spec.selector) {
+        try { if (el.matches(spec.selector)) return spec; } catch { /* 잘못된 selector */ }
+        continue;
+      }
+      const want = String(spec.label).replace(/\s+/g, " ").trim().toLowerCase();
+      if (want && fieldNames(el).some((n) => n.toLowerCase().includes(want))) return spec;
+    }
+    return null;
+  }
+
+  const picker = { host: null, box: null, field: null };
+
+  function pickerBox() {
+    if (picker.box) return picker.box;
+    const host = document.createElement("div");
+    host.style.cssText = "all:initial";
+    const root = host.attachShadow({ mode: "closed" });
+    const style = document.createElement("style");
+    style.textContent = `
+      .box { position: fixed; z-index: 2147483647; box-sizing: border-box; max-height: 260px; overflow-y: auto;
+             background: #fff; color: #1d1d1f; border: 1px solid #c7c7cc; border-radius: 8px;
+             box-shadow: 0 6px 20px rgba(0,0,0,.2); padding: 4px; font: 13px/1.4 "Malgun Gothic", system-ui, sans-serif; }
+      .box[hidden] { display: none; }
+      .hint { color: #6e6e73; font-size: 11px; padding: 2px 8px 4px; }
+      button { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px;
+               padding: 7px 8px; font: inherit; color: inherit; cursor: pointer; word-break: break-all; }
+      button:hover { background: #e8f8ee; }
+      button.cur { font-weight: 700; }
+      button.cur::after { content: " ✓"; color: #03a64a; }`;
+    const box = document.createElement("div");
+    box.className = "box";
+    box.hidden = true;
+    root.append(style, box);
+    document.documentElement.append(host);
+    picker.host = host;
+    picker.box = box;
+    return box;
+  }
+
+  function placePicker() {
+    const el = picker.field;
+    const box = picker.box;
+    if (!el || !box || box.hidden) return;
+    if (!el.isConnected || !visible(el)) return hidePicker();
+    const r = el.getBoundingClientRect();
+    box.style.minWidth = `${Math.max(r.width, 160)}px`;
+    const w = box.offsetWidth;
+    const h = box.offsetHeight;
+    const below = r.bottom + 4;
+    const top = below + h > innerHeight - 4 && r.top - 4 - h >= 4 ? r.top - 4 - h : below;
+    box.style.top = `${Math.max(4, top)}px`;
+    box.style.left = `${Math.min(Math.max(4, r.left), Math.max(4, innerWidth - w - 4))}px`;
+  }
+
+  function hidePicker() {
+    if (picker.box) picker.box.hidden = true;
+    picker.field = null;
+  }
+
+  function showPicker(el, spec) {
+    const choices = choicesOf(spec);
+    if (!choices.length) return;
+    const box = pickerBox();
+    box.textContent = "";
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.textContent = "눌러서 넣기";
+    box.append(hint);
+    for (const value of choices) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = value;
+      if (el.value === value) b.className = "cur";
+      b.addEventListener("mousedown", (e) => e.preventDefault());   // 칸이 포커스를 잃지 않게
+      b.addEventListener("click", () => {
+        filledOnce.add(el);
+        fill(el, value);
+        say(`[옵션 칸] '${spec.label || spec.selector}' 에 선택지를 넣었습니다`);
+        hidePicker();
+      });
+      box.append(b);
+    }
+    picker.field = el;
+    box.hidden = false;
+    placePicker();
+  }
+
+  function onFieldTouched(e) {
+    const el = e.target;
+    if (el === picker.host) return;
+    if (!(el instanceof Element) || !el.matches(FILLABLE)) return hidePicker();
+    if (el === picker.field || el.disabled || el.readOnly) return;
+    const cfg = settings && settings.enabled && settings.autofill;
+    if (!cfg || cfg.picker === false) return;
+    if (!(cfg.match || []).some((m) => m && location.href.includes(m))) return;
+    const spec = specFor(el);
+    if (spec) showPicker(el, spec);
+    else hidePicker();
+  }
+  document.addEventListener("focusin", onFieldTouched, true);
+  document.addEventListener("click", onFieldTouched, true);   // 닫은(Esc) 칸을 다시 눌렀을 때
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && picker.field) hidePicker(); }, true);
+  document.addEventListener("scroll", placePicker, true);
+  addEventListener("resize", placePicker);
+
   // ── 네이버 상품 페이지 → 구매하기 (옵션 없는 상품만) ──────────────────────────
   //
   // 글자 목록으로는 안 적히는 흐름이라 따로 둔다. 한 상품 페이지 안에서 시작해 끝난다.

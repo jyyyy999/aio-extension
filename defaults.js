@@ -135,13 +135,15 @@ export const DEFAULT_SETTINGS = {
   /**
    * 네이버에서 **글씨로 쓰는 옵션 칸**을 미리 정해 둔 값으로 채운다 (각인 문구 따위).
    * 칸은 이름으로 찾는다 — 설정 화면의 "현재 탭의 입력 칸 읽기" 가 그 이름을 뽑아 준다.
-   *   fields: [{ label: "칸 이름 일부", value: "넣을 값", overwrite: false }]
+   *   fields: [{ label: "칸 이름 일부", value: "넣을 값", values: ["넣을 값", "다른 선택지"], overwrite: false }]
    *   label 대신 selector: "#css" 로 짚어도 된다.
+   *   value 는 자동으로 넣는 값(= values[0]). 칸을 누르면 values 가 팝업 선택지로 뜬다 (picker).
    * 비어 있는 칸만 채운다. 네이버 글자 옵션은 대개 구매 레이어 안에 있어서, 레이어를 채우고 나서
    * 바로구매를 누른다.
    */
   autofill: {
     enabled: false,
+    picker: true,   // 칸을 누르면 선택지 팝업 (큰 스위치만 켜져 있으면 된다 — 자동 채우기와 따로)
     site: "naver",
     match: ["brand.naver.com/", "smartstore.naver.com/"],
     fields: [],

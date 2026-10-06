@@ -93,6 +93,11 @@
   <div id="fieldList"></div>
   <label class="f" for="autofillRules">채울 칸 (한 줄에 하나: <code>칸 이름 = 넣을 값</code>)</label>
   <textarea id="autofillRules" spellcheck="false" style="min-height:120px"></textarea>
+  <p class="note">
+    값을 <code>|</code> 로 여럿 적으면 (<code>각인 문구 = 에단 | 홍길동 | Ethan</code>) 그 칸을 눌렀을 때 선택지가 팝업으로 뜨고,
+    하나를 누르면 그 값이 들어갑니다. 자동으로 넣는 것은 <b>첫 값</b>이고, 팝업에서 고른 값은 이미 적혀 있어도 바꿔 넣습니다.
+  </p>
+  <label><input type="checkbox" id="picker"> 칸을 누르면 선택지 팝업 띄우기 (큰 스위치만 켜져 있으면 됩니다 — 자동 채우기 체크와 따로)</label>
 
   <h2>클릭 흐름</h2>
   <p class="note">

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AIO 구매 도우미",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "주문서·결제창 자동 클릭, 네이버페이·L.PAY 간편결제 비밀번호 입력, 롯데온 바로 구매하기, 네이버 옵션 칸 자동 입력, 디스코드 웹훅 알림(@everyone·링크) 자동 열기",
   "minimum_chrome_version": "116",
   "permissions": ["storage", "alarms", "debugger", "tabs"],

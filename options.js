@@ -21,19 +21,22 @@ function fillForm() {
   $("trusted").value = settings.trustedClick;
   $("flows").value = JSON.stringify(settings.flows, null, 2);
   $("autofillRules").value = (settings.autofill.fields || [])
-    .map((f) => `${f.label || f.selector} = ${f.value}`).join("\n");
+    .map((f) => `${f.label || f.selector} = ${(f.values && f.values.length ? f.values : [f.value]).join(" | ")}`).join("\n");
+  $("picker").checked = settings.autofill.picker !== false;
 }
 
-/** "칸 이름 = 값" 줄들을 fields 로. selector 로 짚고 싶으면 이름 자리에 #css 를 적는다. */
+/** "칸 이름 = 값" 줄들을 fields 로. 값은 `|` 로 여럿 적을 수 있다 (첫 값이 자동 입력, 전부 팝업 선택지).
+ *  selector 로 짚고 싶으면 이름 자리에 #css 를 적는다. */
 function parseFields(text) {
   return text.split("\n").map((line) => {
     const at = line.indexOf("=");
     if (at < 0) return null;
     const key = line.slice(0, at).trim();
-    const value = line.slice(at + 1).trim();
-    if (!key || !value) return null;
+    const values = line.slice(at + 1).split("|").map((v) => v.trim()).filter(Boolean);
+    if (!key || !values.length) return null;
+    const value = values[0];
     return key.startsWith("#") || key.startsWith(".") || key.startsWith("[")
-      ? { selector: key, value } : { label: key, value };
+      ? { selector: key, value, values } : { label: key, value, values };
   }).filter(Boolean);
 }
 
@@ -122,7 +125,7 @@ $("save").onclick = async () => {
   settings.pins.lpay.match = list($("lpayMatch").value);
   settings.trustedClick = $("trusted").value;
   settings.flows = flows;
-  settings.autofill = { ...settings.autofill, fields: parseFields($("autofillRules").value) };
+  settings.autofill = { ...settings.autofill, picker: $("picker").checked, fields: parseFields($("autofillRules").value) };
   await chrome.storage.local.set({ settings });
   if (oldToken !== settings.discord.token) await send({ type: "discordRestart" });
   $("saved").textContent = `저장했습니다 ${new Date().toTimeString().slice(0, 8)}`;
