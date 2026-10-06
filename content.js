@@ -249,16 +249,22 @@
     const wrap = el.closest("label");
     if (wrap) add(wrap.textContent);
     add(el.getAttribute("aria-label"));
+    // 라벨 태그를 안 쓰는 화면이 많다 — 칸을 감싼 줄에 적힌 글도 본다. 칸만 감싼 껍데기 div 는 글이 없어서
+    // 글이 나올 때까지 몇 겹 올라간다. 다른 입력 칸까지 품는 겹에서는 멈춘다 (남의 라벨을 가져오지 않게).
+    // 안내문구("입력해주세요")는 칸마다 똑같은 일이 많아서 이 글보다 뒤에 둔다.
+    let box = el.parentElement;
+    for (let i = 0; box && i < 4; i++, box = box.parentElement) {
+      if (box.querySelectorAll(FILLABLE).length > 1) break;
+      const text = (box.textContent || "").replace(/\s+/g, " ").trim();
+      if (text) {
+        if (text.length <= 80) add(text);
+        break;
+      }
+    }
     add(el.getAttribute("placeholder"));
     add(el.getAttribute("title"));
     add(el.name);
     add(el.id);
-    // 라벨 태그를 안 쓰는 화면이 많다 — 칸을 감싼 줄에 적힌 글도 본다.
-    const box = el.closest("div, li, td, tr, p") || el.parentElement;
-    if (box) {
-      const text = (box.textContent || "").replace(/\s+/g, " ").trim();
-      if (text && text.length <= 80) add(text);
-    }
     return names;
   }
 
@@ -325,18 +331,17 @@
     return list.map((v) => String(v ?? "").trim()).filter(Boolean);
   }
 
-  /** 이 칸에 해당하는 설정 줄 (matchField 의 반대 방향). */
-  function specFor(el) {
-    for (const spec of settings.autofill.fields || []) {
-      if (!spec || !(spec.label || spec.selector)) continue;
+  /** 이 칸에 해당하는 설정 줄들 (matchField 의 반대 방향). 같은 칸 이름을 여러 줄 적으면 줄마다 선택지 하나. */
+  function specsFor(el) {
+    const names = fieldNames(el).map((n) => n.toLowerCase());
+    return (settings.autofill.fields || []).filter((spec) => {
+      if (!spec || !(spec.label || spec.selector)) return false;
       if (spec.selector) {
-        try { if (el.matches(spec.selector)) return spec; } catch { /* 잘못된 selector */ }
-        continue;
+        try { return el.matches(spec.selector); } catch { return false; }   // 잘못된 selector
       }
       const want = String(spec.label).replace(/\s+/g, " ").trim().toLowerCase();
-      if (want && fieldNames(el).some((n) => n.toLowerCase().includes(want))) return spec;
-    }
-    return null;
+      return !!want && names.some((n) => n.includes(want));
+    });
   }
 
   const picker = { host: null, box: null, field: null };
@@ -388,8 +393,7 @@
     picker.field = null;
   }
 
-  function showPicker(el, spec) {
-    const choices = choicesOf(spec);
+  function showPicker(el, choices, where) {
     if (!choices.length) return;
     const box = pickerBox();
     box.textContent = "";
@@ -406,7 +410,7 @@
       b.addEventListener("click", () => {
         filledOnce.add(el);
         fill(el, value);
-        say(`[옵션 칸] '${spec.label || spec.selector}' 에 선택지를 넣었습니다`);
+        say(`[옵션 칸] '${where}' 에 선택지를 넣었습니다`);
         hidePicker();
       });
       box.append(b);
@@ -414,6 +418,14 @@
     picker.field = el;
     box.hidden = false;
     placePicker();
+  }
+
+  /** 검색창·쿠폰처럼 값 목록이 필요 없는 칸은 건너뛴다 — 글씨를 적는 칸(text · textarea)만. */
+  function pickable(el) {
+    if (!el.matches('input:not([type]), input[type="text"], textarea')) return false;
+    if (el.closest('header, [role="search"]')) return false;
+    const hay = `${el.name} ${el.id} ${el.getAttribute("aria-label") || ""} ${el.getAttribute("placeholder") || ""}`;
+    return !/search|query|keyword|검색|쿠폰/i.test(hay);
   }
 
   function onFieldTouched(e) {
@@ -424,8 +436,13 @@
     const cfg = settings && settings.enabled && settings.autofill;
     if (!cfg || cfg.picker === false) return;
     if (!(cfg.match || []).some((m) => m && location.href.includes(m))) return;
-    const spec = specFor(el);
-    if (spec) showPicker(el, spec);
+    if (!pickable(el)) return hidePicker();
+    // 설정의 "값 목록" 은 어느 칸에서나 뜬다. 칸 이름 줄이 걸린 칸이면 그 줄의 값이 앞에 온다.
+    const specs = specsFor(el);
+    const own = specs.flatMap(choicesOf);
+    const common = (cfg.choices || []).map((v) => String(v).trim()).filter(Boolean);
+    const choices = [...new Set([...own, ...common])];
+    if (choices.length) showPicker(el, choices, (specs[0] && (specs[0].label || specs[0].selector)) || fieldNames(el)[0] || "칸");
     else hidePicker();
   }
   document.addEventListener("focusin", onFieldTouched, true);
@@ -938,7 +955,18 @@
   // 설정 화면에서 "현재 탭의 입력 칸 읽기" 를 누르면 여기로 온다.
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     if (msg && msg.type === "listFields") {
-      reply({ url: location.href, fields: listFields() });
+      // 이 스크립트는 모든 iframe 에 들어 있고 먼저 답한 프레임의 것만 쓰인다. 칸이 없는 프레임(광고·분석)이
+      // 먼저 "없음" 이라 답하면 진짜 칸이 있는 프레임의 답이 버려진다 — 칸이 있는 프레임만 바로 답하고,
+      // 칸이 없는 프레임은 잠자코 있다가 맨 위 문서만 0.4초 뒤에 "없음" 으로 답한다.
+      const info = {
+        url: location.href,
+        fields: listFields(),
+        inputs: document.querySelectorAll("input, textarea").length,   // 못 읽었을 때 원인 가늠용
+        top: window === window.top,
+      };
+      if (info.fields.length) reply(info);
+      else if (info.top) setTimeout(() => reply(info), 400);
+      else return false;
       return true;
     }
     return false;

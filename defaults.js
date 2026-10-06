@@ -144,6 +144,7 @@ export const DEFAULT_SETTINGS = {
   autofill: {
     enabled: false,
     picker: true,   // 칸을 누르면 선택지 팝업 (큰 스위치만 켜져 있으면 된다 — 자동 채우기와 따로)
+    choices: [],    // 팝업에 뜰 값 목록 — 칸 이름과 상관없이 어느 글씨 칸에서나 뜬다 (클립보드처럼)
     site: "naver",
     match: ["brand.naver.com/", "smartstore.naver.com/"],
     fields: [],

@@ -84,20 +84,25 @@
     각인 문구처럼 <b>글씨로 쓰는 옵션 칸</b>을 미리 정해 둔 값으로 채웁니다. 네이버에서만 씁니다.
     켜고 끄는 것은 팝업의 네이버 칸에서 합니다. <b>비어 있는 칸만</b> 채웁니다.<br>
     칸 이름은 화면에 적힌 글(라벨·안내문구) 일부면 됩니다. 아래 버튼으로 지금 열려 있는 탭의 칸 이름을 그대로 읽어올 수 있습니다 —
-    네이버 글자 옵션은 대개 <b>구매하기를 누른 뒤 뜨는 구매 레이어 안</b>에 있으니, 그 레이어를 띄워 둔 채로 누르세요.
+    네이버 글자 옵션은 대개 <b>구매하기를 누른 뒤 뜨는 구매 레이어 안</b>에 있으니, 상품 탭에서 그 레이어를 띄워 둔 채 이 설정 탭으로 돌아와 누르세요
+    (가장 최근에 본 네이버 상품 탭을 읽습니다).
   </p>
   <div class="bar">
     <button id="readFields">현재 탭의 입력 칸 읽기</button>
     <span id="fieldsNote" class="note"></span>
   </div>
   <div id="fieldList"></div>
-  <label class="f" for="autofillRules">채울 칸 (한 줄에 하나: <code>칸 이름 = 넣을 값</code>)</label>
+  <label class="f" for="choices">값 목록 (한 줄에 하나) — 글씨 칸을 누르면 아래에 뜨고, 눌러서 넣습니다. 칸 이름과 상관없습니다</label>
+  <textarea id="choices" spellcheck="false" style="min-height:90px" placeholder="예)&#10;홍길동&#10;Ethan&#10;010-0000-0000"></textarea>
+  <label><input type="checkbox" id="picker"> 칸을 누르면 값 목록 팝업 띄우기 (큰 스위치만 켜져 있으면 됩니다 — 자동 채우기 체크와 따로. 검색창은 안 뜹니다)</label>
+
+  <label class="f" for="autofillRules">자동으로 채울 칸 (한 줄에 하나: <code>칸 이름 = 넣을 값</code>)</label>
   <textarea id="autofillRules" spellcheck="false" style="min-height:120px"></textarea>
   <p class="note">
-    값을 <code>|</code> 로 여럿 적으면 (<code>각인 문구 = 에단 | 홍길동 | Ethan</code>) 그 칸을 눌렀을 때 선택지가 팝업으로 뜨고,
-    하나를 누르면 그 값이 들어갑니다. 자동으로 넣는 것은 <b>첫 값</b>이고, 팝업에서 고른 값은 이미 적혀 있어도 바꿔 넣습니다.
+    <b>같은 칸 이름을 여러 줄</b> 적으면 (<code>컷팅종류 = 1</code> · <code>컷팅종류 = 2</code> · <code>컷팅종류 = 3</code>) 그 칸을 눌렀을 때
+    선택지가 팝업으로 뜨고, 하나를 누르면 그 값이 들어갑니다. 한 줄에 <code>|</code> 로 여럿 적어도 같습니다 (<code>컷팅종류 = 1 | 2 | 3</code>).
+    자동으로 넣는 것은 <b>맨 위 값</b>이고, 팝업에서 고른 값은 이미 적혀 있어도 바꿔 넣습니다.
   </p>
-  <label><input type="checkbox" id="picker"> 칸을 누르면 선택지 팝업 띄우기 (큰 스위치만 켜져 있으면 됩니다 — 자동 채우기 체크와 따로)</label>
 
   <h2>클릭 흐름</h2>
   <p class="note">
